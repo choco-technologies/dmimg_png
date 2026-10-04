@@ -3,11 +3,42 @@
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![CI](https://github.com/choco-technologies/dmimg_png/actions/workflows/ci.yml/badge.svg)](https://github.com/choco-technologies/dmimg_png/actions/workflows/ci.yml)
 
-dmimg_png DMOD application module.
+The PNG decoder of [dmimg](https://github.com/choco-technologies/dmimg).
 
 ## Description
 
-TODO: describe what this module does.
+A dmimg decoder plugin: once it is enabled - or when
+`dmimg_open_file()` meets a `.png` file and loads it by the name - every
+program that reads images through dmimg reads PNG files.
+
+- **Every PNG**: 1, 2, 4, 8, 16 bits; gray, RGB, palette; an alpha channel
+  or tRNS; interlaced (Adam7). 16-bit channels are reduced to 8 bits.
+- **Streaming**: the image is read in pieces of 512 bytes and output a row
+  at a time (an interlaced one: its passes, each pixel as the block it
+  stands for until the later passes fill it in). The decoder keeps the
+  inflate window (32 KiB), two scanlines and one row of 0xAARRGGBB pixels -
+  about 45 KiB + 8 bytes per pixel of width - never the image.
+- `info.alpha` is set for an alpha channel and for palette images (which
+  may have tRNS). A gray or RGB image with a tRNS color key reports no
+  alpha, but its transparent pixels are output with alpha 0.
+- No gamma correction (gAMA is ignored), no scaling: PNG is decoded whole.
+
+Built on [pngle](https://github.com/kikuchan/pngle) (MIT) with miniz's
+inflate - see [third_party/pngle](third_party/pngle).
+
+## Usage
+
+```c
+#include "dmimg.h"
+
+dmimg_info_t info;
+dmimg_t image = dmimg_open_file("/flash/logo.png", &info, NULL);     /* loads dmimg_png */
+if (image != NULL)
+{
+    dmimg_decode(image, 0, put_block, ctx);
+    dmimg_close(image);
+}
+```
 
 ## Building
 
@@ -31,68 +62,15 @@ make DMOD_MODE=DMOD_MODULE DMOD_DIR=/path/to/dmod
 
 ## Testing
 
-Tests are built automatically alongside the module (see `tests/`). Once built,
-run them with `ctest`:
+The tests decode the PNG files in [tests/fixtures](tests/fixtures) - made by
+`tests/fixtures/make_fixtures.py` (RGB, RGBA, 16-bit, palette with tRNS,
+Adam7) - through dmimg:
 
 ```bash
 cd build
 ctest --output-on-failure
 ```
 
-`ctest` installs the test module's dependencies with `dmf-get` and then runs
-it through `dmod_loader`. To run it manually instead:
-
-```bash
-export DMOD_DMF_DIR=$(pwd)/build/dmf
-dmf-get install -d ${DMOD_DMF_DIR}/test_dmimg_png-local.dmd -y
-dmod_loader build/dmf/test_dmimg_png.dmf
-```
-
-## Usage
-
-<TBD>
-
-This application module can be loaded and executed using the DMOD loader:
-
-```bash
-dmod_loader /path/to/dmimg_png.dmf
-```
-
-## API
-
-`dmimg_png` is loaded and executed through the DMOD loader - it does not
-expose a callable module API of its own. See
-[docs/api-reference.md](docs/api-reference.md) for its command-line
-arguments and exit codes.
-
-## Documentation
-
-See the `docs/` directory:
-
-- **[api-reference.md](docs/api-reference.md)** - Command-line usage
-
-View documentation using `dmf-man dmimg_png`.
-
-## Project Structure
-
-```
-dmimg_png/
-├── docs/              # Documentation (markdown format)
-├── src/
-│   └── dmimg_png.c
-├── tests/
-│   ├── CMakeLists.txt
-│   └── dmimg_png_test.c
-├── CMakeLists.txt
-├── Makefile
-├── dmimg_png.dmr
-└── manifest.dmm
-```
-
-## Author
-
-Patryk Kubiak
-
 ## License
 
-MIT
+MIT - see [LICENSE](LICENSE); pngle: [third_party/pngle/LICENSE](third_party/pngle/LICENSE).
